@@ -1,5 +1,5 @@
-# Student Name: Gurleen Samra
-# Student ID: 3144680
+# Student Name: Gurleen Samra, Omar Ghzeil
+# Student ID: 3144680, 3123197
 # File: Makefile
 
 CC = gcc-13
