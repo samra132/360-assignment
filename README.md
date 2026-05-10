@@ -25,7 +25,6 @@ To compile the program, run:
 make
 ```
 ## Academic Integrity Statement
-I certify that this submission represents entirely my own wor
 
 I certify that this submission represents entirely my own work.
 
