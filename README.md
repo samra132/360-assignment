@@ -23,7 +23,7 @@ To compile the program, run:
 
 ```bash
 make
-
+```
 ## Academic Integrity Statement
 I certify that this submission represents entirely my own wor
 
