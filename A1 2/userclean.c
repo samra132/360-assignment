@@ -125,18 +125,22 @@ int main(void)
     char buffer[1024];
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
-
         buffer[strcspn(buffer, "\n")] = '\0';
 
         if (is_valid(buffer)) {
-            printf("%s\n", buffer);
+            printf("%s : %s\n", buffer, buffer);
         } else {
             char *clean = sanitize(buffer);
 
+            if (clean == NULL) {
+                printf("%s : invalid and unfixable\n", buffer);
+                continue;
+            }
+
             if (is_valid(clean)) {
-                printf("%s\n", clean);
+                printf("%s : %s\n", buffer, clean);
             } else {
-                printf("invalid and unfixable\n");
+                printf("%s : invalid and unfixable\n", buffer);
             }
 
             free(clean);
