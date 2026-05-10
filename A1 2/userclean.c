@@ -1,6 +1,6 @@
 /*
- * Student Name: Gurleen Samra
- * Student ID: 3144680
+ * Student Name: Gurleen Samra, Omar Ghzeil
+ * Student ID: 3144680, 3123197
  * Submission Date: 2026-05-10
  * File: userclean.c
  */
