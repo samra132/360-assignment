@@ -1,0 +1,50 @@
+#ifndef SCHED_H
+#define SCHED_H
+
+/*
+ * Student Name: Gurleen Samra
+ * Student ID:   
+ * Date:         May 24
+ * File:         sched.h
+ * Description:  Shared structures and function prototypes
+ *               for CPU scheduling simulator (FCFS / RR)
+ */
+
+typedef enum {
+    POL_FCFS,
+    POL_RR
+} policy_t;
+
+
+typedef struct {
+    int pid;
+    int arrival;
+    int cpu_time;
+
+    // runtime fields used by simulator 
+    int remaining;
+    int first_run;
+    int completion;
+} job_t;
+
+
+typedef struct {
+    policy_t policy;
+    int quantum;   
+} sim_cfg_t;
+
+
+typedef struct {
+    int context_switches;
+    double avg_tat;
+    double avg_resp;
+} sim_metrics_t;
+
+/* function prototypes */
+int parse_args(int argc, char** argv, sim_cfg_t* cfg, const char** in_path);
+
+int load_workload(const char* path, job_t** jobs, int* n);
+
+int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out);
+
+#endif
