@@ -115,9 +115,14 @@ int load_workload(const char* path, job_t** jobs, int* n)
 
     job_t temp;
 
+    char line[256];
+
     //Read jobs from file
-    while (fscanf(f, "%d %d %d", &temp.pid, &temp.arrival, &temp.cpu_time) == 3)
-    {
+    while (fgets(line, sizeof(line), f)) {
+        char* c = line;
+        if (*c == '#' || *c == '\n' || *c == '\0') continue;
+        if (sscanf(c, "%d %d %d", &temp.pid, &temp.arrival, &temp.cpu_time) != 3) continue; 
+        
         //check if inputs are valid
         if (temp.pid < 0 || temp.arrival < 0 || temp.cpu_time <= 0) {
             fclose(f);
@@ -149,6 +154,7 @@ int load_workload(const char* path, job_t** jobs, int* n)
         int i = *n;
         (*jobs)[i] = temp;
         *n = i + 1;
+         
     }
 
     fclose(f);
