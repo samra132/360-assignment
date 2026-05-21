@@ -1,0 +1,358 @@
+/*
+ * Student Name: Gurleen Samra
+ * Student ID: 3144680
+ * Date: May 2026
+ * File: sched.c
+ * Description: FCFS and RR CPU scheduling simulator 
+ */
+
+#define _POSIX_C_SOURCE 200809L
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sched.h"
+
+
+/*
+ * Purpose: prints correct command line usage format for the program.
+ * Parameters: prog 
+ * Return: void
+ */
+static void usage(const char* prog)
+{
+    fprintf(stderr,"Usage: %s --policy=FCFS|RR [--quantum=N] --in=FILE\n",prog);
+}
+
+
+/*
+ * Purpose: Parses command line arguments and fills the simulation configuration.
+ * Parameters: argc, argv, cfg, in_path 
+ * Return: 0 if successful, 1 if invalid arguments are provided
+ */
+int parse_args(int argc, char** argv, sim_cfg_t* cfg, const char** in_path)
+{
+    int policy_set = 0;
+    cfg->quantum = -1;
+    *in_path = NULL;
+
+    for (int i = 1; i < argc; i++) {
+
+        if (strncmp(argv[i], "--policy=", 9) == 0) {
+            char* val = argv[i] + 9;
+
+            if (strcmp(val, "FCFS") == 0) {
+                cfg->policy = POL_FCFS;
+            }
+            else if (strcmp(val, "RR") == 0) {
+                cfg->policy = POL_RR;
+            }
+            else {
+                usage(argv[0]);
+                return 1;
+            }
+
+            policy_set = 1;
+        }
+
+        else if (strncmp(argv[i], "--in=", 5) == 0) {
+            *in_path = argv[i] + 5;
+        }
+
+        else if (strncmp(argv[i], "--quantum=", 10) == 0) {
+            char* end;
+            long q = strtol(argv[i] + 10, &end, 10);
+        
+        
+
+            if (*end != '\0' || q <= 0) {
+                usage(argv[0]);
+                return 1;
+            }
+
+            cfg->quantum = (int)q;
+        }
+
+        else {
+            usage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (!policy_set || *in_path == NULL) {
+        usage(argv[0]);
+        return 1;
+    }
+
+    if (cfg->policy == POL_RR && cfg->quantum <= 0) {
+        usage(argv[0]);
+        return 1;
+    }
+
+    if (cfg->policy == POL_FCFS && cfg->quantum != -1) {
+        usage(argv[0]);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Purpose: Comparator function used to sort jobs by arrival time and PID.
+ * Parameters: a, b
+ * Return: negative if a < b, positive if a > b
+ */
+static int cmp(const void* a, const void* b)
+{
+    const job_t* x = a;
+    const job_t* y = b;
+
+    if (x->arrival != y->arrival)
+        return x->arrival - y->arrival;
+
+    return x->pid - y->pid;
+}
+
+
+/*
+ * Purpose: Loads CPU scheduling workload from a file into a dynamic array.
+ * Parameters: path, jobs, n
+ * Return: 0 if successful, 1 on file error or invalid input
+ */
+int load_workload(const char* path, job_t** jobs, int* n)
+{
+    
+    FILE* f = fopen(path, "r");
+    if (f == NULL){
+        fprintf(stderr, "Error: could not open input file '%s'\n", path);
+        return 1;
+    }
+
+
+    int cap = 8;
+    *jobs = malloc(sizeof(job_t) * cap);
+    *n = 0;
+
+    job_t temp;
+
+    char line[256];
+
+    //Read jobs from file
+    while (fgets(line, sizeof(line), f)) {
+        char* c = line;
+        if (*c == '#') continue;
+        if (sscanf(c, "%d %d %d", &temp.pid, &temp.arrival, &temp.cpu_time) != 3) continue; 
+        
+        //check if inputs are valid
+        if (temp.pid < 0 || temp.arrival < 0 || temp.cpu_time <= 0) {
+            fclose(f);
+            free(*jobs);
+            *jobs = NULL;
+            *n = 0;
+            return 1;
+        }
+
+        temp.first_run = -1;
+        temp.completion = -1;
+        temp.remaining = temp.cpu_time;
+
+        //resize if needed
+        if (*n == cap) {
+            cap *= 2;
+            job_t* tmp = realloc(*jobs, sizeof(job_t) * cap);
+            if (!tmp) {
+                fclose(f);
+                free(*jobs);
+                *jobs = NULL;
+                *n = 0;
+                return 1;
+            }
+
+            *jobs = tmp;
+        }
+
+        //Store new job
+        int i = *n;
+        (*jobs)[i] = temp;
+        *n = i + 1;
+         
+    }
+
+    fclose(f);
+    // sorts by arrival time and pid if tied
+    qsort(*jobs, *n, sizeof(job_t), cmp);
+
+    return 0;
+}
+
+
+/*
+ * Purpose: Simulates CPU scheduling using FCFS or Round Robin policy.
+ * Parameters: input, n, cfg, out
+ * Return: 0 on success
+ */
+int simulate(const job_t* input, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
+{
+    job_t* p = malloc(sizeof(job_t) * n);
+    memcpy(p, input, sizeof(job_t) * n);
+
+    int *timeline = malloc(sizeof(int) * 5000);
+    int tlen = 0;
+
+    int t = 0;
+
+    // FCFS
+    if (cfg->policy == POL_FCFS) {
+
+        for (int i = 0; i < n; i++) {
+
+            while (t < p[i].arrival) {
+                timeline[tlen++] = -1;
+                t++;
+            }
+
+            p[i].first_run = t;
+
+            for (int j = 0; j < p[i].cpu_time; j++) {
+                timeline[tlen++] = p[i].pid;
+                t++;
+            }
+
+            p[i].completion = t;
+        }
+    }
+
+    // RR
+    else {
+        int queue[5000];
+        int front = 0;
+        int back = 0;
+        int completed = 0;
+        int next = 0;
+
+        int cur = -1;
+        int quantum = 0;
+
+        while (completed < n) {
+            // add arrivals at the start
+            while (next < n && p[next].arrival <= t) {
+                queue[back++] = next;
+                next++;
+            }
+
+            // pick next job
+            if (cur == -1 && front != back) {
+                cur = queue[front++];
+                quantum = cfg->quantum;
+
+                if (p[cur].first_run == -1) {
+                    p[cur].first_run = t;
+                }
+            }
+
+            // idle
+            if (cur == -1) {
+                timeline[tlen++] = -1;
+                t++;
+                continue;
+            }
+
+            // run one tick
+            timeline[tlen++] = p[cur].pid;
+            p[cur].remaining--;
+            quantum--;
+
+            // process finished or quantum expired
+            if (p[cur].remaining == 0 || quantum == 0) {
+
+                if (p[cur].remaining > 0) {
+                    queue[back++] = cur;
+                }
+                else {
+                    p[cur].completion = t + 1;
+                    completed++;
+                }
+                cur = -1;
+            }
+            t++;
+        }
+    }
+
+    // context switches
+    int ctx = 0;
+    int prev = -1;
+
+    for (int i = 0; i < tlen; i++) {
+
+        if (timeline[i] >= 0 &&
+            prev >= 0 &&
+            timeline[i] != prev) {
+            ctx++;
+        }
+
+        if (timeline[i] >= 0) {
+            prev = timeline[i];
+        }
+    }
+
+    // metrics
+    double tat = 0, resp = 0;
+
+    for (int i = 0; i < n; i++) {
+        tat  += p[i].completion - p[i].arrival;
+        resp += p[i].first_run - p[i].arrival;
+    }
+
+    // print timeline
+    printf("time: ");
+    for (int i = 0; i < tlen; i++)
+        printf("%d ", i);
+
+    printf("\nrun : ");
+    for (int i = 0; i < tlen; i++)
+        printf("%d ", timeline[i]);
+
+    printf("\n");
+
+    for (int i = 0; i < n; i++) {
+        int tat_per = p[i].completion - p[i].arrival;
+        int resp_per = p[i].first_run - p[i].arrival;
+        printf("P%d: first run=%d completion=%d TAT=%d RESP=%d\n", p[i].pid, p[i].first_run, p[i].completion, tat_per, resp_per);
+    }
+
+    // system stats
+    double avg_tat = tat / n;
+    double avg_resp = resp / n;
+
+    printf("System: ctx_switches=%d, avgTAT=%.3f, avgRESP=%.3f\n",ctx, avg_tat, avg_resp);
+
+    out->context_switches = ctx;
+    out->avg_tat = avg_tat;
+    out->avg_resp = avg_resp;
+
+    free(p);
+    free(timeline);
+
+    return 0;
+}
+
+
+/*
+ * Purpose: Program entry point; coordinates parsing, loading, simulation, and cleanup.
+ * Parameters: argc, argv 
+ * Return: 0 on success
+ */
+int main(int argc, char** argv){
+    sim_cfg_t cfg; const char* in_path=NULL;
+    int pr = parse_args(argc, argv, &cfg, &in_path);
+    if (pr != 0) return 1;
+
+    job_t* jobs=NULL; int n=0;
+    if (load_workload(in_path, &jobs, &n) != 0) return 2;
+
+    sim_metrics_t m;
+    if (simulate(jobs, n, &cfg, &m) != 0) { free(jobs); return 3; }
+
+    free(jobs);
+    return 0;
+}
+
