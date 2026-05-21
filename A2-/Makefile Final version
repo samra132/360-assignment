@@ -1,0 +1,22 @@
+#Student Name: Gurleen Samra
+#Student ID: 3144680
+#Date: May 2026
+#File: sched.c
+
+
+CC = gcc-13
+CFLAGS = -std=c11 -Wall -Wextra -pedantic
+
+TARGET = sched
+
+all: $(TARGET)
+
+$(TARGET): sched.c
+	$(CC) $(CFLAGS) -o $(TARGET) sched.c
+
+clean:
+	rm -f $(TARGET)
+
+valgrind: $(TARGET)
+	valgrind ./$(TARGET) --policy=FCFS --in=workload.txt
+	valgrind ./$(TARGET) --policy=RR --quantum=2 --in=workload.txt
