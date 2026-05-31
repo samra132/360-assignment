@@ -1,0 +1,51 @@
+# ID Header:
+# Student Name:
+# Student ID:
+# Submission Date:
+# File: Makefile - Builds and tests vmsim
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -pedantic -g
+TARGET = vmsim
+OBJS = vmsim.o
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+
+vmsim.o: vmsim.c vmsim.h
+	$(CC) $(CFLAGS) -c vmsim.c
+
+test: all
+	@echo "Running diff-based tests..."
+
+	./$(TARGET) --mode=bb --base=4096 --limit=64 --trace=tests/bb/t1.txt > tests/bb/t1.out
+	diff -u tests/bb/t1.expected tests/bb/t1.out
+
+	./$(TARGET) --mode=bb --base=4096 --limit=64 --trace=tests/bb/bad.txt > tests/bb/bad.out
+	diff -u tests/bb/bad.expected tests/bb/bad.out
+
+	./$(TARGET) --mode=seg --config=tests/seg/three-seg.ini --trace=tests/seg/t2.txt > tests/seg/t2.out
+	diff -u tests/seg/t2.expected tests/seg/t2.out
+
+	./$(TARGET) --mode=seg --config=tests/seg/three-seg.ini --trace=tests/seg/bad-trace.txt > tests/seg/bad-trace.out
+	diff -u tests/seg/bad-trace.expected tests/seg/bad-trace.out
+
+	./$(TARGET) --mode=seg --config=tests/seg/bad-config.ini --trace=tests/seg/t2.txt > tests/seg/bad-config.out
+	diff -u tests/seg/bad-config.expected tests/seg/bad-config.out
+
+	./$(TARGET) --mode=seg --config=tests/seg/stack-demo.ini --trace=tests/seg/stack-down.txt > tests/seg/stack-down.out
+	diff -u tests/seg/stack-down.expected tests/seg/stack-down.out
+
+	@echo "All tests passed."
+
+valgrind: all
+	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET) --mode=bb --base=4096 --limit=64 --trace=tests/bb/t1.txt
+	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET) --mode=seg --config=tests/seg/three-seg.ini --trace=tests/seg/t2.txt
+
+clean:
+	rm -f $(TARGET) $(OBJS)
+	rm -f tests/*.out
+	rm -f tests/bb/*.out
+	rm -f tests/seg/*.out
