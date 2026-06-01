@@ -98,7 +98,6 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         }
     }
 
-    // ---- validation ----
 
     if (have_mode == false)
     {
@@ -139,28 +138,34 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
     return true;
 }
 
-void print_file(const char *filename)
-{
-    FILE *fp = fopen(filename, "r");
 
+//bb
+int run_bb(const sim_opts_t *o, stats_t *st)
+{
+    if (o == NULL || st == NULL)
+        return 1;
+
+    FILE *fp = fopen(o->trace_path, "r");
     if (fp == NULL)
     {
-        fprintf(stderr, "Could not open %s\n", filename);
-        return;
+        fprintf(stderr, "Error: cannot open trace file %s\n",
+                o->trace_path);
+        return 1;
     }
 
     char line[256];
+    int line_no = 0;
+
     while (fgets(line, sizeof(line), fp))
     {
-        //remove newline
+        line_no++;
+
         line[strcspn(line, "\n")] = '\0';
 
-        //remove comments
         char *comment = strchr(line, '#');
         if (comment)
             *comment = '\0';
 
-        
         int len = strlen(line);
         while (len > 0 && isspace((unsigned char)line[len - 1]))
         {
@@ -168,20 +173,65 @@ void print_file(const char *filename)
             len--;
         }
 
-        // skip empty lines
         if (len == 0)
             continue;
 
-        printf("%s\n", line);
+        char op_str[16];
+        char addr_str[64];
+
+        if (sscanf(line, "%15s %63s", op_str, addr_str) != 2)
+        {
+            printf("trace: %s:%d: malformed: expected \"OP ADDR\"\n",
+                   o->trace_path, line_no);
+            continue;
+        }
+
+        if (strcmp(op_str, "R") != 0 &&
+            strcmp(op_str, "W") != 0)
+        {
+            printf("trace: %s:%d: malformed: op must be R/W, got \"%s\"\n",
+                   o->trace_path, line_no, op_str);
+            continue;
+        }
+
+        char *end;
+        errno = 0;
+        long va = strtol(addr_str, &end, 10);
+
+        if (errno != 0 || *end != '\0')
+        {
+            printf("trace: %s:%d: bad address \"%s\" (not decimal)\n",
+                   o->trace_path, line_no, addr_str);
+            continue;
+        }
+
+        st->accesses++;
+
+        if (va >= 0 && va < o->limit)
+        {
+            long pa = o->base + va;
+
+            printf("%s %ld -> PA %ld ; ok\n",
+                   op_str, va, pa);
+
+            st->ok++;
+        }
+        else
+        {
+            printf("%s %ld -> fault: BOUNDS\n",
+                   op_str, va);
+
+            st->faults_bounds++;
+        }
     }
-}
 
-//bb
-int run_bb(const sim_opts_t *o, stats_t *st)
-{
-    (void)st;
+    fclose(fp);
 
-    print_file(o->trace_path);
+    printf("== stats ==\n");
+    printf("accesses=%lu, ok=%lu, faults.bounds=%lu\n",
+           st->accesses,
+           st->ok,
+           st->faults_bounds);
 
     return 0;
 }
@@ -189,11 +239,8 @@ int run_bb(const sim_opts_t *o, stats_t *st)
 //seg
 int run_seg(const sim_opts_t *o, stats_t *st)
 {
+    (void)o;
     (void)st;
-
-    print_file(o->config_path);
-    print_file(o->trace_path);
-
     return 0;
 }
 
