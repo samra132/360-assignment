@@ -60,16 +60,20 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         {
             char *end;
 
-            errno = 0;
             long value = strtol(arg + 7, &end, 10);
 
-            if (errno != 0 || *end != '\0')
+            if (end == arg + 7 || *end != '\0')
+
             {
+
                 fprintf(stderr, "Error: invalid base value\n");
+
                 return false;
+
             }
 
             o->base = value;
+
             have_base = true;
         }
 
@@ -98,8 +102,8 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         }
     }
 
-    // ---- validation ----
-
+    // validation 
+    
     if (have_mode == false)
     {
         fprintf(stderr, "Error: missing --mode\n");
