@@ -102,7 +102,7 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         }
     }
 
-
+    // validation 
     if (have_mode == false)
     {
         fprintf(stderr, "Error: missing --mode\n");
